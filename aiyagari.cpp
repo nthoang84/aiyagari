@@ -8,7 +8,9 @@ Aiyagari::Aiyagari() :
     assetGridSize(300),             
     laborGridSize(7),               // Aiyagari (1994, p. 675)
     rho(0.4),                       // [0.2, 0.4] as in Aiyagari (1994, p. 675)
-    sigma(0.9)                      // {0, 0.3, 0.6, 0.9} as in Aiyagari (1994, p. 675)
+    sigma(0.9),                     // {0, 0.3, 0.6, 0.9} as in Aiyagari (1994, p. 675)
+    borrowingLimit(0.0),            
+    assetMax(300.0)                 
 {}
 
 /**
@@ -79,6 +81,22 @@ void Aiyagari::computeLaborInvDist(double eps, int maxIter) {
         for (int i = 0; i < laborGridSize; i++) {
             laborInvDist[i] /= sum;
         }
+    }
+}
+
+void Aiyagari::computeAssetGrid(double growthRate) {
+    assetMin = -borrowingLimit;
+    asset.resize(assetGridSize);
+    if (fabs(growthRate) < EPS) {    
+        double stepSize = (assetMax - assetMin) / (assetGridSize - 1);
+        for (int i = 0; i < assetGridSize; i++) {
+            asset[i] = (i == 0 ? assetMin : asset[i - 1] + stepSize);
+        }
+        return;
+    }
+    for (int i = 0; i < assetGridSize; i++) {
+        asset[i] = assetMin + (assetMax - assetMin) * 
+            ((pow(1 + growthRate, i) - 1) / (pow(1 + growthRate, assetGridSize - 1) - 1));
     }
 }
 

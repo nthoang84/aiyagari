@@ -13,6 +13,8 @@ public:
 
     void computeLaborInvDist(double eps = EPS, int maxIter = MAX_ITER);
 
+    void computeAssetGrid(double growthRate = 0.025);
+
     void print() const;
 
 private:
@@ -23,10 +25,14 @@ private:
     int laborGridSize;
     double rho;
     double sigma;
+    double borrowingLimit;
+    double assetMin;
+    double assetMax;
 
     vector<double> labor;
     vector<vector<double>> transition;
     vector<double> laborInvDist;
+    vector<double> asset;
 };
 
 #endif
