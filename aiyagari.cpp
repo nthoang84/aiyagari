@@ -29,7 +29,7 @@ void Aiyagari::discretizeLabor(double mTauchen) {
 
     // Method to calculate standard normal CDF
     auto phi = [&](double x) {
-        return std::erfc(-x / std::sqrt(2)) / 2;
+        return erfc(-x / sqrt(2)) / 2;
     };
 
     // Compute Markov transition probability matrix
@@ -48,15 +48,37 @@ void Aiyagari::discretizeLabor(double mTauchen) {
             } 
         }
     }
+}
 
-    for (int i = 0; i < laborGridSize; i++) {
-        double sum = 0;
+void Aiyagari::computeLaborInvDist(double eps, int maxIter) {
+    laborInvDist.resize(laborGridSize);
+    laborInvDist[0] = 1.0;
+    int iter = 0;
+    while (iter < maxIter) {
+        vector<double> dist(laborGridSize);
         for (int j = 0; j < laborGridSize; j++) {
-            cout << transition[i][j] << ' ';
-            sum += transition[i][j];
+            for (int i = 0; i < laborGridSize; i++) {
+                dist[j] += laborInvDist[i] * transition[i][j];
+            }
         }
-        cout << "\tSUM:" << sum;
-        cout << '\n';
+        double diff = 0;
+        for (int i = 0; i < laborGridSize; i++) {
+            diff = max(diff, fabs(dist[i] - laborInvDist[i]));
+            laborInvDist[i] = dist[i];
+        }
+        if (diff < eps) {
+            break;
+        }
+        iter++;
+    }
+    double sum = 0;
+    for (int i = 0; i < laborGridSize; i++) {
+        sum += laborInvDist[i];
+    }
+    if (fabs(sum - 1.0) > EPS) {
+        for (int i = 0; i < laborGridSize; i++) {
+            labor[i] /= sum;
+        }
     }
 }
 

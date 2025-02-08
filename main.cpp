@@ -3,6 +3,6 @@
 int main() {
     Aiyagari model;
     model.discretizeLabor();
-    model.print();
+    model.computeLaborInvDist();
     return 0;
 }
