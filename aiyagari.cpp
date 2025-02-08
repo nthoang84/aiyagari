@@ -77,7 +77,7 @@ void Aiyagari::computeLaborInvDist(double eps, int maxIter) {
     }
     if (fabs(sum - 1.0) > EPS) {
         for (int i = 0; i < laborGridSize; i++) {
-            labor[i] /= sum;
+            laborInvDist[i] /= sum;
         }
     }
 }
