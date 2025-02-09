@@ -114,7 +114,6 @@ void Aiyagari::computePolicy(double interestRate, double eps, int maxIter) {
     assetPolicy.resize(totalGridSize);
     consumptionPolicy.resize(totalGridSize);
     endogenousAsset.resize(totalGridSize);
-    endogenousAssetBound.resize(laborGridSize);
     MU.resize(totalGridSize);
     expectedMU.resize(totalGridSize);
 
@@ -138,9 +137,6 @@ void Aiyagari::computePolicy(double interestRate, double eps, int maxIter) {
                 }
                 endogenousAsset[id(i, j)] = (mu_c_inverse(expectedMU[id(i, j)]) + 
                                              asset[i] - wageRate * labor[j]) / (1 + interestRate);
-                if (i == 0) {
-                    endogenousAssetBound[j] = endogenousAsset[id(i, j)];
-                }
             }
         }
     };
