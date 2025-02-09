@@ -7,5 +7,6 @@ int main() {
     model.computeAssetGrid();
     model.solveEquilibrium();
     model.print();
+    model.plot();
     return 0;
 }

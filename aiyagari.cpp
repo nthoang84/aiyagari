@@ -264,6 +264,47 @@ void Aiyagari::print() const {
     cout << ">> Equilibrium: r = " << eqmInterestRate << ", K(r) = " << aggregateCapitalDemand << '\n';
 }
 
+void Aiyagari::plot() {
+    pair<double, double> interestRateBounds{0.005, 0.08};
+    double interestRateStep = 0.0025;
+    vector<double> interestRate;
+    for (double currentRate = interestRateBounds.first; currentRate < interestRateBounds.second; ) {
+        interestRate.push_back(currentRate);
+        currentRate += interestRateStep;
+        if (fabs(currentRate - interestRateBounds.second) < EPS) {
+            interestRate.push_back(currentRate);
+        }
+    }
+    vector<double> demand(interestRate.size());
+    vector<double> supply(interestRate.size());
+    for (int i = 0; i < interestRate.size(); i++) {
+        double wageRate = computeWageFromInterestRate(interestRate[i]);
+        demand[i] = aggregateLabor * pow(alpha / (interestRate[i] + depreciationRate), 1.0 / (1.0 - alpha));
+        computePolicy(interestRate[i]);
+        simulate();
+        supply[i] = aggregateCapitalSupply;
+    }
+    FILE *gnuplot = popen("gnuplot -persistent", "w");
+    if (!gnuplot) {
+        std::cerr << "Error: Unable to open gnuplot." << std::endl;
+        return;
+    }
+    fprintf(gnuplot, "set terminal pdfcairo\n");
+    fprintf(gnuplot, "set output 'capital_supply_demand.pdf'\n");
+    fprintf(gnuplot, "set xlabel 'Aggregate capital'\n");
+    fprintf(gnuplot, "set ylabel 'Interest rate'\n");
+    fprintf(gnuplot, "plot '-' with lines title 'Demand', '-' with lines title 'Supply'\n");
+    for (size_t i = 0; i < interestRate.size(); ++i) {
+        fprintf(gnuplot, "%lf %lf\n", demand[i], interestRate[i]);
+    }
+    fprintf(gnuplot, "e\n");
+    for (size_t i = 0; i < interestRate.size(); ++i) {
+        fprintf(gnuplot, "%lf %lf\n", supply[i], interestRate[i]);
+    }
+    fprintf(gnuplot, "e\n");
+    fclose(gnuplot);
+}
+
 inline int Aiyagari::id(int x, int y) {
     return x * laborGridSize + y;
 }

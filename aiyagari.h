@@ -23,6 +23,8 @@ public:
 
     void print() const;
 
+    void plot();
+
 private:
     inline int id(int x, int y);
     inline double u(double c);
