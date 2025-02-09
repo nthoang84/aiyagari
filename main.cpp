@@ -5,5 +5,7 @@ int main() {
     model.discretizeLabor();
     model.computeLaborInvDist();
     model.computeAssetGrid();
+    model.solveEquilibrium();
+    model.print();
     return 0;
 }
