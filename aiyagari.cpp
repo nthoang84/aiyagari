@@ -14,7 +14,7 @@ Aiyagari::Aiyagari()
       sigma(0.9),                     // {0, 0.3, 0.6, 0.9} as in Aiyagari (1994, p. 675)
       depreciationRate(0.05),
       borrowingLimit(0.0),
-      assetMax(500)
+      assetMax(800)
 {
     totalGridSize = assetGridSize * laborGridSize;
     assetMin = -borrowingLimit;
