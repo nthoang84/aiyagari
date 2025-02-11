@@ -13,7 +13,7 @@ public:
 
     void computeLaborInvDist(double eps = EPS, int maxIter = MAX_ITER);
 
-    void computeAssetGrid(double growthRate = 0.025);
+    void computeAssetGrid(bool plotDistribution = false, double growthRate = 0.025);
 
     void computePolicy(double interestRate, double eps = EPS, int maxIter = MAX_ITER);
 
@@ -23,7 +23,9 @@ public:
 
     void print() const;
 
-    void plot();
+    void plot(bool verbose = false);
+
+    void plot(const vector<double>& data, const string& label, bool isGrid = false);
 
 private:
     inline int id(int x, int y);

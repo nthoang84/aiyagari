@@ -8,10 +8,10 @@ int main() {
     Aiyagari model;
     model.discretizeLabor();
     model.computeLaborInvDist();
-    model.computeAssetGrid();
+    model.computeAssetGrid(true);
     model.solveEquilibrium();
     model.print();
-    model.plot();
+    model.plot(true);
     auto end = chrono::high_resolution_clock::now();
     chrono::duration<double> duration = end - start;
     cout << ">> Elapsed time: " << duration.count() << " seconds" << endl;

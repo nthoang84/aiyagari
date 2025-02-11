@@ -1,7 +1,9 @@
 #include "aiyagari.h"
 
 #include <cmath>
+#include <cstdio>
 
+#include <fstream>
 #include <iostream>
 
 Aiyagari::Aiyagari() 
@@ -94,7 +96,7 @@ void Aiyagari::computeLaborInvDist(double eps, int maxIter) {
     }
 }
 
-void Aiyagari::computeAssetGrid(double growthRate) {
+void Aiyagari::computeAssetGrid(bool plotDistribution, double growthRate) {
     asset.resize(assetGridSize);
     if (fabs(growthRate) < EPS) {    
         double stepSize = (assetMax - assetMin) / (assetGridSize - 1);
@@ -106,6 +108,36 @@ void Aiyagari::computeAssetGrid(double growthRate) {
     for (int i = 0; i < assetGridSize; i++) {
         asset[i] = assetMin + (assetMax - assetMin) * 
                    ((pow(1 + growthRate, i) - 1) / (pow(1 + growthRate, assetGridSize - 1) - 1));
+    }
+    if (plotDistribution) {
+        int numBins = 10;
+        double binWidth = (assetMax - assetMin) / numBins;
+        vector<int> histogram(numBins);
+        for (double a : asset) {
+            int binIndex = static_cast<int>((a - assetMin) / binWidth);
+            if (binIndex >= numBins) binIndex = numBins - 1; 
+            histogram[binIndex]++;
+        }
+        string dataFile = "./data/assetDistribution.dat";
+        ofstream dataStream(dataFile);
+        for (int i = 0; i < numBins; i++) {
+            double binStart = assetMin + i * binWidth;
+            double binEnd = binStart + binWidth;
+            dataStream << binStart << ' ' << histogram[i] << endl;
+        }
+        dataStream.close();
+        FILE* gnuplot = popen("gnuplot", "w");
+        if (gnuplot) {
+            fprintf(gnuplot, "set terminal pdfcairo\n");
+            fprintf(gnuplot, "set output './figures/assetDistribution.pdf'\n");
+            fprintf(gnuplot, "set title 'Asset Distribution'\n");
+            fprintf(gnuplot, "unset key\n");
+            fprintf(gnuplot, "plot '%s' with boxes\n", dataFile.c_str());
+            fflush(gnuplot);
+            pclose(gnuplot);
+        } else {
+            cerr << "Error: Could not open gnuplot." << endl;
+        }
     }
 }
 
@@ -264,7 +296,7 @@ void Aiyagari::print() const {
     cout << ">> Equilibrium: r = " << eqmInterestRate << ", K(r) = " << aggregateCapitalDemand << '\n';
 }
 
-void Aiyagari::plot() {
+void Aiyagari::plot(bool verbose) {
     pair<double, double> interestRateBounds{0.005, 0.08};
     double interestRateStep = 0.0025;
     vector<double> interestRate;
@@ -284,13 +316,13 @@ void Aiyagari::plot() {
         simulate();
         supply[i] = aggregateCapitalSupply;
     }
-    FILE *gnuplot = popen("gnuplot -persistent", "w");
+    FILE *gnuplot = popen("gnuplot", "w");
     if (!gnuplot) {
-        std::cerr << "Error: Unable to open gnuplot." << std::endl;
+        cerr << "Error: Unable to open gnuplot." << endl;
         return;
     }
     fprintf(gnuplot, "set terminal pdfcairo\n");
-    fprintf(gnuplot, "set output 'capital_supply_demand.pdf'\n");
+    fprintf(gnuplot, "set output './figures/capitalSupplyDemand.pdf'\n");
     fprintf(gnuplot, "set xlabel 'Aggregate capital'\n");
     fprintf(gnuplot, "set ylabel 'Interest rate'\n");
     fprintf(gnuplot, "plot '-' with lines title 'Demand', '-' with lines title 'Supply'\n");
@@ -302,7 +334,53 @@ void Aiyagari::plot() {
         fprintf(gnuplot, "%lf %lf\n", supply[i], interestRate[i]);
     }
     fprintf(gnuplot, "e\n");
-    fclose(gnuplot);
+    fflush(gnuplot);
+    pclose(gnuplot);
+
+    if (verbose) {
+        plot(asset, "asset");
+        plot(labor, "labor");
+        plot(assetPolicy, "assetPolicy", true);
+        plot(consumptionPolicy, "consumptionPolicy", true);
+    }
+}
+
+void Aiyagari::plot(const vector<double>& data, const string& label, bool isGrid) {
+    string dataFile = "./data/" + label + ".dat";
+    ofstream dataStream(dataFile);
+    if (isGrid) {
+        for (int j = 0; j < laborGridSize; j++) {
+            for (int i = 0; i < assetGridSize; i++) {
+                dataStream << labor[j] << ' '<< asset[i] << ' ' << data[id(i, j)] << endl;
+            }
+            dataStream << endl;
+        }
+    } else {
+        for (int i = 0; i < data.size(); i++) {
+            dataStream << i << " " << data[i] << endl; 
+        }
+    }
+    dataStream.close();
+    FILE* gnuplot = popen("gnuplot", "w");
+    if (gnuplot) {
+        fprintf(gnuplot, "set terminal pdfcairo\n");
+        fprintf(gnuplot, "set output './figures/%s.pdf'\n", label.c_str());
+        fprintf(gnuplot, "unset key\n");
+        if (isGrid) {
+            fprintf(gnuplot, "set title '%s'\n", label.c_str());
+            fprintf(gnuplot, "set xlabel 'labor'\n");
+            fprintf(gnuplot, "set ylabel 'asset'\n");
+            fprintf(gnuplot, "set pm3d\n");
+            fprintf(gnuplot, "splot '%s' with pm3d\n", dataFile.c_str());
+        } else {
+            fprintf(gnuplot, "set ylabel '%s'\n", label.c_str());
+            fprintf(gnuplot, "plot '%s' with lines\n", dataFile.c_str());
+        }
+        fflush(gnuplot);
+        pclose(gnuplot);
+    } else {
+        cerr << "Error: Could not open gnuplot." << endl;
+    }
 }
 
 inline int Aiyagari::id(int x, int y) {
