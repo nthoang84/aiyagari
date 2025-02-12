@@ -16,7 +16,7 @@ Aiyagari::Aiyagari()
       sigma(0.9),                     // {0, 0.3, 0.6, 0.9} as in Aiyagari (1994, p. 675)
       depreciationRate(0.05),
       borrowingLimit(0.0),
-      assetMax(800)
+      assetMax(300)
 {
     totalGridSize = assetGridSize * laborGridSize;
     assetMin = -borrowingLimit;
@@ -110,29 +110,17 @@ void Aiyagari::computeAssetGrid(bool plotDistribution, double growthRate) {
                    ((pow(1 + growthRate, i) - 1) / (pow(1 + growthRate, assetGridSize - 1) - 1));
     }
     if (plotDistribution) {
-        int numBins = 10;
-        double binWidth = (assetMax - assetMin) / numBins;
-        vector<int> histogram(numBins);
-        for (double a : asset) {
-            int binIndex = static_cast<int>((a - assetMin) / binWidth);
-            if (binIndex >= numBins) binIndex = numBins - 1; 
-            histogram[binIndex]++;
-        }
-        string dataFile = "./data/assetDistribution.dat";
-        ofstream dataStream(dataFile);
-        for (int i = 0; i < numBins; i++) {
-            double binStart = assetMin + i * binWidth;
-            double binEnd = binStart + binWidth;
-            dataStream << binStart << ' ' << histogram[i] << endl;
-        }
-        dataStream.close();
         FILE* gnuplot = popen("gnuplot", "w");
         if (gnuplot) {
             fprintf(gnuplot, "set terminal pdfcairo\n");
             fprintf(gnuplot, "set output './figures/assetDistribution.pdf'\n");
             fprintf(gnuplot, "set title 'Asset Distribution'\n");
             fprintf(gnuplot, "unset key\n");
-            fprintf(gnuplot, "plot '%s' with boxes\n", dataFile.c_str());
+            fprintf(gnuplot, "plot '-' using 1:(1) smooth kdensity with lines lw 2\n");
+            for (double a : asset) {
+                fprintf(gnuplot, "%f\n", a);
+            }
+            fprintf(gnuplot, "e\n");
             fflush(gnuplot);
             pclose(gnuplot);
         } else {
@@ -371,7 +359,20 @@ void Aiyagari::plot(const vector<double>& data, const string& label, bool isGrid
             fprintf(gnuplot, "set xlabel 'labor'\n");
             fprintf(gnuplot, "set ylabel 'asset'\n");
             fprintf(gnuplot, "set pm3d\n");
-            fprintf(gnuplot, "splot '%s' with pm3d\n", dataFile.c_str());
+            if (label == "consumptionPolicy") {
+                string assetPolicyData = "./data/assetPolicy.dat";
+                ofstream dataStream(assetPolicyData);
+                for (int j = 0; j < laborGridSize; j++) {
+                    for (int i = 0; i < assetGridSize; i++) {
+                        dataStream << labor[j] << ' '<< asset[i] << ' ' << assetPolicy[id(i, j)] << endl;
+                    }
+                    dataStream << endl;
+                }
+                dataStream.close();
+                fprintf(gnuplot, "splot '%s' with pm3d, '%s' with pm3d\n", dataFile.c_str(), assetPolicyData.c_str());
+            } else {
+                fprintf(gnuplot, "splot '%s' with pm3d\n", dataFile.c_str());
+            }
         } else {
             fprintf(gnuplot, "set ylabel '%s'\n", label.c_str());
             fprintf(gnuplot, "plot '%s' with lines\n", dataFile.c_str());
