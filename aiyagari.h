@@ -53,6 +53,8 @@ private:
     double aggregateCapitalDemand;
     double aggregateLabor;
     double eqmInterestRate;
+    double capitalTax;
+    double laborTax;
 
     vector<double> labor;
     vector<vector<double>> transition;

@@ -16,7 +16,8 @@ Aiyagari::Aiyagari()
       sigma(0.4),                     // [0.2, 0.4] as in Aiyagari (1994, p. 675)
       depreciationRate(0.08),
       borrowingLimit(0.0),
-      assetMax(500)
+      assetMax(500),
+      capitalTax(0.35)
 {
     totalGridSize = assetGridSize * laborGridSize;
     assetMin = -borrowingLimit;
@@ -142,8 +143,8 @@ void Aiyagari::computePolicy(double interestRate, double eps, int maxIter) {
     auto updateGrid = [&]() {
         for (int j = 0; j < laborGridSize; j++) {
             for (int i = 0; i < assetGridSize; i++) {
-                consumptionPolicy[id(i, j)] = (1 + interestRate) * asset[i] + 
-                                              wageRate * labor[j] -
+                consumptionPolicy[id(i, j)] = (1 + interestRate * (1 - capitalTax)) * asset[i] + 
+                                              wageRate * labor[j] * (1 - laborTax) -
                                               assetPolicy[id(i, j)];
                 MU[id(i, j)] = mu_c(consumptionPolicy[id(i, j)]);
             }
@@ -152,11 +153,12 @@ void Aiyagari::computePolicy(double interestRate, double eps, int maxIter) {
             for (int i = 0; i < assetGridSize; i++) {
                 expectedMU[id(i, j)] = 0;
                 for (int k = 0; k < laborGridSize; k++) {
-                    expectedMU[id(i, j)] += beta * (1 + interestRate) * 
+                    expectedMU[id(i, j)] += beta * (1 + interestRate * (1 - capitalTax)) * 
                                            transition[j][k] * MU[id(i, k)];
                 }
                 endogenousAsset[id(i, j)] = (mu_c_inverse(expectedMU[id(i, j)]) + 
-                                             asset[i] - wageRate * labor[j]) / (1 + interestRate);
+                                             asset[i] - wageRate * labor[j] * (1 - laborTax)) / 
+                                            (1 + interestRate * (1 - capitalTax));
             }
         }
     };
@@ -265,6 +267,7 @@ void Aiyagari::simulate(double eps, int maxIter) {
 
 void Aiyagari::solveEquilibrium(double eps, int maxIter) {
     double interestRate = 0.041;
+    laborTax = 0.3;
     int iter = 0;
     while (iter < maxIter) {
         double wageRate = computeWageFromInterestRate(interestRate);
