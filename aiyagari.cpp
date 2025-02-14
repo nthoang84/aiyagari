@@ -7,16 +7,16 @@
 #include <iostream>
 
 Aiyagari::Aiyagari() 
-    : assetGridSize(300),
+    : assetGridSize(500),
       laborGridSize(7),               // Aiyagari (1994, p. 675)
       alpha(0.36),                    // Capital share of income
       beta(0.96),                     // Discount factor
       gamma(3.0),                     // Coefficient of relative risk aversion
-      rho(0.4),                       // [0.2, 0.4] as in Aiyagari (1994, p. 675)
-      sigma(0.9),                     // {0, 0.3, 0.6, 0.9} as in Aiyagari (1994, p. 675)
-      depreciationRate(0.05),
+      rho(0.6),                       // {0, 0.3, 0.6, 0.9} as in Aiyagari (1994, p. 675)
+      sigma(0.4),                     // [0.2, 0.4] as in Aiyagari (1994, p. 675)
+      depreciationRate(0.08),
       borrowingLimit(0.0),
-      assetMax(300)
+      assetMax(500)
 {
     totalGridSize = assetGridSize * laborGridSize;
     assetMin = -borrowingLimit;
@@ -175,7 +175,9 @@ void Aiyagari::computePolicy(double interestRate, double eps, int maxIter) {
                 if (current_i == 0) {
                     assetPolicy[id(i, j)] = asset[0];
                 } else if (current_i == assetGridSize) {
-                    assetPolicy[id(i, j)] = asset.back();
+                    double slope = (asset[current_i - 1] - asset[current_i - 2]) / 
+                                   (endogenousAsset[id(current_i - 1, j)] - endogenousAsset[id(current_i - 2, j)]);
+                    assetPolicy[id(i, j)] = (asset[i] - endogenousAsset[id(current_i - 1, j)]) * slope + asset[current_i - 1];
                 } else {
                     const double& left = endogenousAsset[id(current_i - 1, j)];
                     const double& right = endogenousAsset[id(current_i, j)];
@@ -207,6 +209,7 @@ void Aiyagari::simulate(double eps, int maxIter) {
         int current_i = 0;
         for (int i = 0; i < assetGridSize; i++) {
             double x = assetPolicy[id(i, j)];
+            x = min(x, assetMax);
             while (current_i < assetGridSize && asset[current_i] < x) {
                 current_i++;
             }
@@ -261,7 +264,7 @@ void Aiyagari::simulate(double eps, int maxIter) {
 }
 
 void Aiyagari::solveEquilibrium(double eps, int maxIter) {
-    double interestRate = 0.04;
+    double interestRate = 0.041;
     int iter = 0;
     while (iter < maxIter) {
         double wageRate = computeWageFromInterestRate(interestRate);
@@ -270,12 +273,12 @@ void Aiyagari::solveEquilibrium(double eps, int maxIter) {
         simulate();        
         double diff = (aggregateCapitalSupply - aggregateCapitalDemand) / 
                       ((aggregateCapitalSupply + aggregateCapitalDemand) / 2);
+        cout << "Iteration " << iter + 1 << ": r = " << interestRate << ", diff = " << diff << '\n';
         if (fabs(diff) < eps) {
             break;
         }
         interestRate = alpha * pow(aggregateLabor, 1 - alpha) / pow((aggregateCapitalSupply + aggregateCapitalDemand) / 2, 1 - alpha) - depreciationRate;
         iter++;
-        cout << "Iteration " << iter << ": excessDemand = " << aggregateCapitalDemand - aggregateCapitalSupply << '\n';
     }
     eqmInterestRate = interestRate;
 }
