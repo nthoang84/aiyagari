@@ -157,6 +157,7 @@ void Aiyagari::computePolicy(double interestRate, double eps, int maxIter) {
                 }
                 double weight = (endogenousAsset[id(current_i, j)] - asset[i]) / 
                                 (endogenousAsset[id(current_i, j)] - endogenousAsset[id(current_i - 1, j)]);
+                weight = min(max(weight, 0.0), 1.0);
                 assetPolicy[id(i, j)] = weight * asset[current_i - 1] + (1 - weight) * asset[current_i];
                 assetPolicy[id(i, j)] = max(assetPolicy[id(i, j)], asset[0]);
             }
@@ -269,7 +270,7 @@ void Aiyagari::solveEquilibrium(double eps, int maxIter) {
         simulate();
         double diff = (aggregateCapitalSupply - aggregateCapitalDemand) /
                       ((aggregateCapitalSupply + aggregateCapitalDemand) / 2);
-        cout << "Iteration " << iter + 1 << ": r = " << interestRate << ", diff = " << diff << ' ' << aggregateCapitalDemand << ' ' << aggregateCapitalSupply << '\n';
+        cout << "Iteration " << iter + 1 << ": r = " << interestRate << ", diff = " << diff << '\n';
         if (fabs(diff) < eps) {
             break;
         }
