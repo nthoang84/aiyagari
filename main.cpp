@@ -8,7 +8,7 @@ int main() {
     Aiyagari model;
     model.discretizeLabor();
     model.computeLaborInvDist();
-    model.computeAssetGrid(true);
+    model.computeAssetGrid();
     model.solveEquilibrium();
     model.print();
     model.plot(true);

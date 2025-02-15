@@ -21,6 +21,7 @@ Aiyagari::Aiyagari()
 {
     totalGridSize = assetGridSize * laborGridSize;
     assetMin = -borrowingLimit;
+    interestRateBounds = make_pair(0.005, (1.0 / beta - 1.0) / (1.0 - capitalTax));
 }
 
 void Aiyagari::discretizeLabor(double mTauchen) {
@@ -56,13 +57,6 @@ void Aiyagari::discretizeLabor(double mTauchen) {
             } 
         }
     }
-
-    // Exponentiate to get labor from log(labor)
-    aggregateLabor = 0;
-    for (int i = 0; i < laborGridSize; i++) {
-        labor[i] = exp(labor[i]);
-        aggregateLabor += labor[i];
-    }
 }
 
 void Aiyagari::computeLaborInvDist(double eps, int maxIter) {
@@ -95,9 +89,14 @@ void Aiyagari::computeLaborInvDist(double eps, int maxIter) {
             laborInvDist[i] /= sum;
         }
     }
+    aggregateLabor = 0;
+    for (int i = 0; i < laborGridSize; i++) {
+        labor[i] = exp(labor[i]);
+        aggregateLabor += laborInvDist[i] * labor[i];
+    }
 }
 
-void Aiyagari::computeAssetGrid(bool plotDistribution, double growthRate) {
+void Aiyagari::computeAssetGrid(double growthRate) {
     asset.resize(assetGridSize);
     if (fabs(growthRate) < EPS) {    
         double stepSize = (assetMax - assetMin) / (assetGridSize - 1);
@@ -109,24 +108,6 @@ void Aiyagari::computeAssetGrid(bool plotDistribution, double growthRate) {
     for (int i = 0; i < assetGridSize; i++) {
         asset[i] = assetMin + (assetMax - assetMin) * 
                    ((pow(1 + growthRate, i) - 1) / (pow(1 + growthRate, assetGridSize - 1) - 1));
-    }
-    if (plotDistribution) {
-        FILE* gnuplot = popen("gnuplot", "w");
-        if (gnuplot) {
-            fprintf(gnuplot, "set terminal pdfcairo\n");
-            fprintf(gnuplot, "set output './figures/assetDistribution.pdf'\n");
-            fprintf(gnuplot, "set title 'Asset Distribution'\n");
-            fprintf(gnuplot, "unset key\n");
-            fprintf(gnuplot, "plot '-' using 1:(1) smooth kdensity with lines lw 2\n");
-            for (double a : asset) {
-                fprintf(gnuplot, "%f\n", a);
-            }
-            fprintf(gnuplot, "e\n");
-            fflush(gnuplot);
-            pclose(gnuplot);
-        } else {
-            cerr << "Error: Could not open gnuplot." << endl;
-        }
     }
 }
 
@@ -169,23 +150,15 @@ void Aiyagari::computePolicy(double interestRate, double eps, int maxIter) {
     int iter = 0;
     while (iter < maxIter) {       
         for (int j = 0; j < laborGridSize; j++) {
-            int current_i = 0;
+            int current_i = 1;
             for (int i = 0; i < assetGridSize; i++) {
-                while (current_i < assetGridSize && endogenousAsset[id(current_i, j)] < asset[i]) {
+                while (current_i < assetGridSize - 1 && endogenousAsset[id(current_i, j)] < asset[i]) {
                     current_i++;
                 }
-                if (current_i == 0) {
-                    assetPolicy[id(i, j)] = asset[0];
-                } else if (current_i == assetGridSize) {
-                    double slope = (asset[current_i - 1] - asset[current_i - 2]) / 
-                                   (endogenousAsset[id(current_i - 1, j)] - endogenousAsset[id(current_i - 2, j)]);
-                    assetPolicy[id(i, j)] = (asset[i] - endogenousAsset[id(current_i - 1, j)]) * slope + asset[current_i - 1];
-                } else {
-                    const double& left = endogenousAsset[id(current_i - 1, j)];
-                    const double& right = endogenousAsset[id(current_i, j)];
-                    double weight = (asset[i] - left) / (right - left);
-                    assetPolicy[id(i, j)] = (1 - weight) * asset[current_i - 1] + weight * asset[current_i];
-                }
+                double weight = (endogenousAsset[id(current_i, j)] - asset[i]) / 
+                                (endogenousAsset[id(current_i, j)] - endogenousAsset[id(current_i - 1, j)]);
+                assetPolicy[id(i, j)] = weight * asset[current_i - 1] + (1 - weight) * asset[current_i];
+                assetPolicy[id(i, j)] = max(assetPolicy[id(i, j)], asset[0]);
             }
         }
         auto prevMU = MU;
@@ -203,43 +176,40 @@ void Aiyagari::computePolicy(double interestRate, double eps, int maxIter) {
     }
 }
 
-void Aiyagari::simulate(double eps, int maxIter) {
+void Aiyagari::simulate(bool plotDistribution, double eps, int maxIter) {
     // Approximate the density using a histogram over a fixed grid (Young, 2010, JEDC).
     vector<double> where(totalGridSize);
     vector<double> weight(totalGridSize);
     for (int j = 0; j < laborGridSize; j++) {
-        int current_i = 0;
+        int current_i = 1;
         for (int i = 0; i < assetGridSize; i++) {
             double x = assetPolicy[id(i, j)];
-            x = min(x, assetMax);
-            while (current_i < assetGridSize && asset[current_i] < x) {
+            while (current_i < assetGridSize - 1 && asset[current_i] < x) {
                 current_i++;
             }
             where[id(i, j)] = current_i;
-            if (current_i == 0 || current_i == assetGridSize) {
-                continue;
-            } else {
-                weight[id(i, j)] = (x - asset[current_i - 1]) / (asset[current_i] - asset[current_i - 1]);
-            }
+            weight[id(i, j)] = (asset[current_i] - x) / (asset[current_i] - asset[current_i - 1]);
+            weight[id(i, j)] = min(max(weight[id(i, j)], 0.0), 1.0);
         }
     }
-    vector<double> dist(totalGridSize, 1.0 / totalGridSize);
+    vector<double> dist(totalGridSize);
+    dist[0] = 1.0;
     int iter = 0;
     while (iter < maxIter) {
-        vector<double> newDist(totalGridSize);
+        vector<double> tempDist(totalGridSize);
         for (int j = 0; j < laborGridSize; j++) {
             for (int i = 0; i < assetGridSize; i++) {
-                for (int k = 0; k < laborGridSize; k++) {
-                    double new_i = where[id(i, j)];
-                    double w = weight[id(i, j)];
-                    if (new_i == 0) {
-                        newDist[id(0, k)] += dist[id(i, j)] * transition[j][k];
-                    } else if (new_i == assetGridSize) {
-                        newDist[id(assetGridSize - 1, k)] += dist[id(i, j)] * transition[j][k];
-                    } else {
-                        newDist[id(new_i - 1, j)] += dist[id(i, j)] * transition[j][k] * (1 - w);
-                        newDist[id(new_i, j)] += dist[id(i, j)] * transition[j][k] * w;
-                    }
+                double new_i = where[id(i, j)];
+                double w = weight[id(i, j)];
+                tempDist[id(new_i - 1, j)] += w * dist[id(i, j)];
+                tempDist[id(new_i, j)] += (1 - w) * dist[id(i, j)];
+            }
+        }
+        vector<double> newDist(totalGridSize);
+        for (int i = 0; i < assetGridSize; i++) {
+            for (int k = 0; k < laborGridSize; k++) {
+                for (int j = 0; j < laborGridSize; j++) {
+                    newDist[id(i, k)] += tempDist[id(i, j)] * transition[j][k];
                 }
             }
         }
@@ -258,10 +228,33 @@ void Aiyagari::simulate(double eps, int maxIter) {
         iter++;
     }
     aggregateCapitalSupply = 0;
+    vector<double> assetDist(assetGridSize, 0);
     for (int i = 0; i < assetGridSize; i++) {
         for (int j = 0; j < laborGridSize; j++) {
             aggregateCapitalSupply += asset[i] * dist[id(i, j)];
+            assetDist[i] += dist[id(i ,j)];
         }
+    }
+    if (plotDistribution) {
+        string dataFile = "./data/assetDistribution.dat";
+        ofstream dataStream(dataFile);
+        for (int i = 0; i < assetGridSize; i++) {
+            dataStream << asset[i] << " " << assetDist[i] * 100 << endl; 
+        }
+        dataStream.close();
+        FILE *gnuplot = popen("gnuplot", "w");
+        if (!gnuplot) {
+            cerr << "Error: Unable to open gnuplot." << endl;
+            return;
+        }
+        fprintf(gnuplot, "set terminal pdfcairo\n");
+        fprintf(gnuplot, "set output './figures/assetDistribution.pdf'\n");
+        fprintf(gnuplot, "set xlabel 'Asset'\n");
+        fprintf(gnuplot, "set ylabel 'Percentage of agents'\n");
+        fprintf(gnuplot, "unset key\n");
+        fprintf(gnuplot, "plot '%s' with lines\n", dataFile.c_str());
+        fflush(gnuplot);
+        pclose(gnuplot);
     }
 }
 
@@ -273,17 +266,19 @@ void Aiyagari::solveEquilibrium(double eps, int maxIter) {
         double wageRate = computeWageFromInterestRate(interestRate);
         aggregateCapitalDemand = aggregateLabor * pow(alpha / (interestRate + depreciationRate), 1.0 / (1.0 - alpha));
         computePolicy(interestRate);
-        simulate();        
-        double diff = (aggregateCapitalSupply - aggregateCapitalDemand) / 
+        simulate();
+        double diff = (aggregateCapitalSupply - aggregateCapitalDemand) /
                       ((aggregateCapitalSupply + aggregateCapitalDemand) / 2);
-        cout << "Iteration " << iter + 1 << ": r = " << interestRate << ", diff = " << diff << '\n';
+        cout << "Iteration " << iter + 1 << ": r = " << interestRate << ", diff = " << diff << ' ' << aggregateCapitalDemand << ' ' << aggregateCapitalSupply << '\n';
         if (fabs(diff) < eps) {
             break;
         }
         interestRate = alpha * pow(aggregateLabor, 1 - alpha) / pow((aggregateCapitalSupply + aggregateCapitalDemand) / 2, 1 - alpha) - depreciationRate;
+        interestRate = max(interestRate, interestRateBounds.first);
         iter++;
     }
     eqmInterestRate = interestRate;
+    simulate(true);
 }
 
 void Aiyagari::print() const {
@@ -291,7 +286,6 @@ void Aiyagari::print() const {
 }
 
 void Aiyagari::plot(bool verbose) {
-    pair<double, double> interestRateBounds{0.005, 0.08};
     double interestRateStep = 0.0025;
     vector<double> interestRate;
     for (double currentRate = interestRateBounds.first; currentRate < interestRateBounds.second; ) {
@@ -365,20 +359,7 @@ void Aiyagari::plot(const vector<double>& data, const string& label, bool isGrid
             fprintf(gnuplot, "set xlabel 'labor'\n");
             fprintf(gnuplot, "set ylabel 'asset'\n");
             fprintf(gnuplot, "set pm3d\n");
-            if (label == "consumptionPolicy") {
-                string assetPolicyData = "./data/assetPolicy.dat";
-                ofstream dataStream(assetPolicyData);
-                for (int j = 0; j < laborGridSize; j++) {
-                    for (int i = 0; i < assetGridSize; i++) {
-                        dataStream << labor[j] << ' '<< asset[i] << ' ' << assetPolicy[id(i, j)] << endl;
-                    }
-                    dataStream << endl;
-                }
-                dataStream.close();
-                fprintf(gnuplot, "splot '%s' with pm3d, '%s' with pm3d\n", dataFile.c_str(), assetPolicyData.c_str());
-            } else {
-                fprintf(gnuplot, "splot '%s' with pm3d\n", dataFile.c_str());
-            }
+            fprintf(gnuplot, "splot '%s' with pm3d\n", dataFile.c_str());
         } else {
             fprintf(gnuplot, "set ylabel '%s'\n", label.c_str());
             fprintf(gnuplot, "plot '%s' with lines\n", dataFile.c_str());
