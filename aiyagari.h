@@ -21,8 +21,6 @@ public:
 
     void solveEquilibrium(double eps = EPS, int maxIter = MAX_ITER);
 
-    void print() const;
-
     void plot(bool verbose = false);
 
     void plot(const vector<double>& data, const string& label, bool isGrid = false);

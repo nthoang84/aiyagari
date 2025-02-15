@@ -280,9 +280,6 @@ void Aiyagari::solveEquilibrium(double eps, int maxIter) {
     }
     eqmInterestRate = interestRate;
     simulate(true);
-}
-
-void Aiyagari::print() const {
     cout << ">> Equilibrium: r = " << eqmInterestRate << ", K(r) = " << aggregateCapitalDemand << '\n';
 }
 
@@ -357,8 +354,8 @@ void Aiyagari::plot(const vector<double>& data, const string& label, bool isGrid
         fprintf(gnuplot, "unset key\n");
         if (isGrid) {
             fprintf(gnuplot, "set title '%s'\n", label.c_str());
-            fprintf(gnuplot, "set xlabel 'labor'\n");
-            fprintf(gnuplot, "set ylabel 'asset'\n");
+            fprintf(gnuplot, "set xlabel 'Labor'\n");
+            fprintf(gnuplot, "set ylabel 'Asset'\n");
             fprintf(gnuplot, "set pm3d\n");
             fprintf(gnuplot, "splot '%s' with pm3d\n", dataFile.c_str());
         } else {

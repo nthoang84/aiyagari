@@ -10,7 +10,6 @@ int main() {
     model.computeLaborInvDist();
     model.computeAssetGrid();
     model.solveEquilibrium();
-    model.print();
     model.plot(true);
     auto end = chrono::high_resolution_clock::now();
     chrono::duration<double> duration = end - start;
